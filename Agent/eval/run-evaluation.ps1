@@ -66,6 +66,31 @@ else {
 $configuration['agent.trace.enabled'] = 'true'
 $configuration['agent.trace.path'] = $TracePath
 
+function Invoke-WithFileRetry {
+    param(
+        [Parameter(Mandatory = $true)]
+        [scriptblock]$Action,
+
+        [int]$MaxAttempts = 10,
+
+        [int]$DelayMilliseconds = 200
+    )
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            & $Action
+            return
+        }
+        catch {
+            if ($attempt -eq $MaxAttempts) {
+                throw
+            }
+            Write-Verbose "File operation attempt $attempt failed: $($_.Exception.Message)"
+            Start-Sleep -Milliseconds $DelayMilliseconds
+        }
+    }
+}
+
 function Invoke-AzclipsCommand {
     param([Parameter(ValueFromRemainingArguments)][string[]] $Arguments)
 
@@ -390,10 +415,10 @@ catch {
 finally {
     try {
         if ($configurationExisted) {
-            [IO.File]::Move($configurationBackupPath, $configurationPath, $true)
+            Invoke-WithFileRetry { [IO.File]::Move($configurationBackupPath, $configurationPath, $true) }
         }
         else {
-            [IO.File]::Delete($configurationPath)
+            Invoke-WithFileRetry { [IO.File]::Delete($configurationPath) }
         }
     }
     catch {
