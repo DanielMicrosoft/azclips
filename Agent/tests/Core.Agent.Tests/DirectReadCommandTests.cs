@@ -181,7 +181,7 @@ public sealed class DirectReadCommandTests
         var home = await CreateChildHomeAsync(fixture);
         var error = await RunCliAsync(BuiltCliPath(), home, ["agent", "tool", "docs", "show"], fixture.Root, expectedExitCode: 2);
         Assert.Contains("UsageError", error, StringComparison.Ordinal);
-        Assert.Contains("candidate: [name]", error, StringComparison.Ordinal);
+        Assert.Contains("Required parameter '--name' is missing.", error, StringComparison.Ordinal);
         Assert.False(File.Exists(Path.Combine(home, HomePaths.AgentDirectoryName, HomePaths.AgentHelpDirectoryName, HelpCatalogProvider.IndexFileName)));
     }
 

@@ -318,6 +318,14 @@ public class CLIArgumentParsingProvider(PropertyParser propertyParser, ILoggingS
             }
         }
 
+        foreach (var parameter in parameters.Values)
+        {
+            if (parameter.IsRequired && !args.ContainsKey(parameter.Name))
+            {
+                errorList.Add($"Required parameter '--{parameter.InvocationName}' is missing.");
+            }
+        }
+
         errors = errorList;
         return errorList.Count == 0;
     }

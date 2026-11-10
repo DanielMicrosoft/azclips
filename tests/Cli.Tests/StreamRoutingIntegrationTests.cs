@@ -59,8 +59,7 @@ public class StreamRoutingIntegrationTests
 
             Assert.Equal(2, exit);
             Assert.Empty(stdout);
-            // Yabo: isRequired now has to attach to a parameterset, test cases need to be redesigned
-            // Assert.Contains("--name", stderr);
+            Assert.Contains("--name", stderr);
             Assert.DoesNotContain("WARNING:", stderr);
             Assert.Contains("az config set --key agent.recovery.trigger --value manual", stderr);
             Assert.Contains("az config set --key agent.recovery.trigger --value auto", stderr);
@@ -90,6 +89,21 @@ public class StreamRoutingIntegrationTests
         Assert.True(error >= 0, $"The original error is missing:\n{stderr}");
         Assert.True(plan >= 0, $"The fake agent did not run:\n{stderr}");
         Assert.True(error < plan, $"The original error must come before the AI plan:\n{stderr}");
+    }
+
+    [Fact]
+    public async Task AutoRecovery_MissingRequiredArgumentsDoesNotStartAi()
+    {
+        using var layout = FakeAgentLayout.Create();
+
+        var (exit, stdout, stderr) = await layout.RunAsync("config", "set");
+
+        Assert.Equal(2, exit);
+        Assert.Empty(stdout);
+        Assert.Contains("Required parameter '--key' is missing.", stderr);
+        Assert.Contains("Required parameter '--value' is missing.", stderr);
+        Assert.DoesNotContain("AI PLAN", stderr);
+        Assert.False(File.Exists(layout.RecordPath));
     }
 
     [Fact]
@@ -337,8 +351,10 @@ public class StreamRoutingIntegrationTests
         Assert.Equal(2, exit);
         Assert.Empty(stdout);
         Assert.Contains("ERROR: [UsageError]", stderr);
-        // Yabo: isRequired now has to attach to a parameterset, test cases need to be redesigned
-        // Assert.Contains("'--name'", stderr);
+        foreach (var flag in new[] { "name", "location", "resource-group", "size", "admin-username" })
+        {
+            Assert.Contains($"Required parameter '--{flag}' is missing.", stderr);
+        }
         Assert.Contains("az vm create --help", stderr);
         Assert.DoesNotContain("\"error\"", stderr);
     }

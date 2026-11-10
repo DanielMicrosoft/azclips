@@ -28,12 +28,31 @@ public class CliArgumentValidationTests
 
         var valid = provider.ValidateArguments(new Dictionary<string, (string, object)>(), parameters, out var errors);
 
+        Assert.False(valid);
         Assert.NotNull(errors);
-        // Yabo: Why assert the error message in preview stage?
-        // Assert.Contains("Required parameter '--subscription-id' is missing.", errors!);
-        // Assert.Contains("Required parameter '--resource-group' is missing.", errors!);
+        Assert.Equal(2, errors.Count);
+        Assert.Contains("Required parameter '--subscription-id' is missing.", errors);
+        Assert.Contains("Required parameter '--resource-group' is missing.", errors);
         Assert.DoesNotContain(errors!, e => e.Contains("SubscriptionId"));
         Assert.DoesNotContain(errors!, e => e.Contains("ResourceGroupName"));
+    }
+
+    [Fact]
+    public void ValidateArguments_RequiredFalseAndZeroValues_AreProvided()
+    {
+        var parameters = new Dictionary<string, ParameterMetadata>
+        {
+            ["Force"] = new("Force", "force", typeof(bool), "Force.", true, [], []),
+            ["Count"] = new("Count", "count", typeof(int), "Count.", true, [], []),
+        };
+        var args = new Dictionary<string, (string, object)>
+        {
+            ["Force"] = ("force", false),
+            ["Count"] = ("count", 0),
+        };
+
+        Assert.True(CreateProvider().ValidateArguments(args, parameters, out var errors));
+        Assert.Empty(errors!);
     }
 
     [Fact]
