@@ -105,7 +105,7 @@ not advertised `az config` keys. The options still feed `BuiltinProviderConfig.B
 For `builtin`, `AgentStartupBoundary` acquires one Azure access token silently and uses it
 for the tenant data-boundary lookup (`Agent/AgentMode/AgentStartupBoundary.cs`).
 `BuiltinEndpointResolver.Choose` then picks the gateway (`Agent/Providers/BuiltinEndpointResolver.cs`).
-The boundary always picks the gateway (there is no endpoint override setting): a confirmed `Global` boundary selects the production East US gateway; `EU`, an
+By default, the boundary picks the gateway: a confirmed `Global` boundary selects the production East US gateway; `EU`, an
 unknown boundary, a failed lookup, and a managed-identity profile (no tenant) select production West
 Europe. `BuiltinProviderConfig.Build` reuses the same token and builds a `ProviderConfig {
 Type = "azure", WireApi = "responses", BaseUrl = <resolved url>, BearerToken = ... }`
