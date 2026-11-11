@@ -409,7 +409,7 @@ public sealed class MacOsFailureHistoryKeyStorageTests
             BeforeMatching = () =>
             {
                 firstEntered.Set();
-                Assert.True(releaseFirst.Wait(TimeSpan.FromSeconds(10)));
+                Assert.True(releaseFirst.Wait(TimeSpan.FromSeconds(60)));
             },
         };
         var secondNative = new FakeNative { BeforePolicyRead = secondEntered.Set };
@@ -417,21 +417,21 @@ public sealed class MacOsFailureHistoryKeyStorageTests
         Task<byte[]>? second = null;
         try
         {
-            Assert.True(firstEntered.Wait(TimeSpan.FromSeconds(10)));
+            Assert.True(firstEntered.Wait(TimeSpan.FromSeconds(60)));
             second = Task.Run(() =>
             {
                 secondStarted.Set();
                 return Create(secondNative).ReadData();
             });
-            Assert.True(secondStarted.Wait(TimeSpan.FromSeconds(10)));
+            Assert.True(secondStarted.Wait(TimeSpan.FromSeconds(60)));
             Assert.False(secondEntered.Wait(TimeSpan.FromMilliseconds(100)));
         }
         finally
         {
             releaseFirst.Set();
-            await first.WaitAsync(TimeSpan.FromSeconds(10));
+            await first.WaitAsync(TimeSpan.FromSeconds(60));
             if (second is not null)
-                await second.WaitAsync(TimeSpan.FromSeconds(10));
+                await second.WaitAsync(TimeSpan.FromSeconds(60));
         }
 
         Assert.True(secondEntered.IsSet);

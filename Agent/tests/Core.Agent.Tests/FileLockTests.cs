@@ -1,11 +1,14 @@
 using System.Text.Json.Nodes;
 using Core.Abstractions;
+using Tests.Common.Utilities;
 using Xunit;
 
 namespace Core.Agent.Tests;
 
 public sealed class FileLockTests : IDisposable
 {
+    private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(60);
+
     private readonly string _root = Directory.CreateTempSubdirectory("azclips-filelock-").FullName;
 
     public void Dispose() => Directory.Delete(_root, recursive: true);
@@ -42,6 +45,7 @@ public sealed class FileLockTests : IDisposable
 
         Assert.False(updated.Wait(TimeSpan.FromSeconds(1)));
         held!.Dispose();
+        Assert.True(updated.Wait(TestTimeout));
         Assert.True(updated.Result);
         Assert.Equal(2, FileLock.ReadJson(path)["b"]!.GetValue<int>());
     }
@@ -67,16 +71,18 @@ public sealed class FileLockTests : IDisposable
     }
 
     [Fact]
-    public void Update_gives_up_after_the_requested_wait()
+    public async Task Update_gives_up_after_the_requested_wait()
     {
         var path = Path.Combine(_root, "state.json");
         using var held = FileLock.TryAcquire($"{path}.lock", TimeSpan.Zero);
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var clock = new SignalingFakeTimeProvider();
+        var wait = TimeSpan.FromMilliseconds(200);
 
-        var updated = FileLock.UpdateJson(path, document => document["a"] = 1, TimeSpan.FromMilliseconds(200));
+        var updated = Task.Run(() => FileLock.UpdateJson(path, document => document["a"] = 1, wait, clock));
+        await clock.WaitForTimerAsync(dueTime => dueTime > TimeSpan.Zero, TestTimeout);
+        clock.Advance(wait);
 
-        Assert.False(updated);
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"elapsed {stopwatch.Elapsed}");
+        Assert.False(await updated.WaitAsync(TestTimeout));
         Assert.False(File.Exists(path));
     }
 

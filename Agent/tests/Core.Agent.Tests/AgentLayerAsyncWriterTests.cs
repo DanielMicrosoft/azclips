@@ -11,7 +11,7 @@ namespace Core.Agent.Tests;
 [Collection("AgentTelemetry")]
 public class AgentLayerAsyncWriterTests
 {
-    private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(60);
 
     [Theory]
     [InlineData(0, true)]

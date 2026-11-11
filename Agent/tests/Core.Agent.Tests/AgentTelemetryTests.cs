@@ -120,7 +120,7 @@ public sealed class AgentTelemetryProviderTests
             Assert.False(pending.IsCompleted);
             Assert.Throws<InvalidOperationException>(() => host.Scope);
             profile.SetResult(new Profile { Name = "injected", TenantId = "injected-tenant" });
-            await using var scope = await pending.WaitAsync(TimeSpan.FromSeconds(5));
+            await using var scope = await pending.WaitAsync(TimeSpan.FromSeconds(60));
 
             Assert.Same(scope, host.Scope);
             Assert.Same(scope, await host.GetScopeAsync());

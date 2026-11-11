@@ -16,10 +16,10 @@ internal static class RetiredAgentKeys
     internal static readonly TimeSpan CleanupBudget = TimeSpan.FromSeconds(1);
 
     /// <summary>Never fails the Agent start: any error leaves the keys in place.</summary>
-    internal static async Task TryRemoveAsync(IConfigurationService config, CancellationToken cancellationToken)
+    internal static async Task TryRemoveAsync(IConfigurationService config, CancellationToken cancellationToken, TimeProvider? timeProvider = null)
     {
-        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        budget.CancelAfter(CleanupBudget);
+        using var deadline = new CancellationTokenSource(CleanupBudget, timeProvider ?? TimeProvider.System);
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
         try
         {
             var stored = await config.ListConfigurationAsync(cancellationToken: budget.Token).ConfigureAwait(false);

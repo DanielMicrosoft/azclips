@@ -18,18 +18,21 @@ internal sealed class FailureHistoryFiles
     private readonly TimeSpan _lockTimeout;
     private readonly Action<string, string> _replace;
     private readonly Action<string> _delete;
+    private readonly TimeProvider _timeProvider;
 
     internal FailureHistoryFiles(
         string? directory = null,
         TimeSpan? lockTimeout = null,
         Action<string, string>? replace = null,
-        Action<string>? delete = null)
+        Action<string>? delete = null,
+        TimeProvider? timeProvider = null)
     {
         DirectoryPath = Path.GetFullPath(directory ?? HomePaths.GetDefaultFailureHistoryDirectory());
         _lockTimeout = lockTimeout ?? TimeSpan.FromSeconds(2);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(_lockTimeout, TimeSpan.Zero);
         _replace = replace ?? Replace;
         _delete = delete ?? File.Delete;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     internal string DirectoryPath { get; }
@@ -38,7 +41,7 @@ internal sealed class FailureHistoryFiles
     internal async Task<FileStream> AcquireWriterLockAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return await FileLock.TryAcquireAsync(Path.Combine(DirectoryPath, LockFileName), _lockTimeout, cancellationToken, ownerOnly: true)
+        return await FileLock.TryAcquireAsync(Path.Combine(DirectoryPath, LockFileName), _lockTimeout, cancellationToken, ownerOnly: true, _timeProvider)
                 .ConfigureAwait(false)
             ?? throw new FailureHistoryException("failure_history_locked", "Failure history is busy. Try again shortly.");
     }

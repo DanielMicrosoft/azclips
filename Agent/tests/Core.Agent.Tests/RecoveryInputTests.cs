@@ -126,7 +126,7 @@ public class RecoveryInputTests
             input.DisposeLocalCopyOfClientHandle();
             var output = process.StandardOutput.ReadToEndAsync();
             var error = process.StandardError.ReadToEndAsync();
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
             try
             {
                 await JsonSerializer.SerializeAsync(input, CreateRequest(),
@@ -255,7 +255,7 @@ public class RecoveryInputTests
             var state = new SessionState { IsOneShot = !settings.IsInteractive };
             var result = await PreToolUseHook.HandleAsync(
                 new PreToolUseHookInput { ToolName = tool, ToolArgs = JsonSerializer.SerializeToElement(new { command = "az vm show" }) },
-                "az", new ConsoleApprovalPrompt(), state, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(2));
+                "az", new ConsoleApprovalPrompt(), state, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(60));
 
             Assert.Equal("deny", result?.PermissionDecision);
         }

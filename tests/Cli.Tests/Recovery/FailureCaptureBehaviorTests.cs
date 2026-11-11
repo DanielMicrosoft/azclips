@@ -11,6 +11,7 @@ using Core.Cli.Parser;
 using Core.Cli.Recovery;
 using Core.Runtime.Recovery;
 using Moq;
+using Tests.Common.Utilities;
 using Xunit;
 
 namespace Cli.Tests.Recovery;
@@ -18,6 +19,8 @@ namespace Cli.Tests.Recovery;
 [Collection("Azclips Service Provider Tests")]
 public class FailureCaptureBehaviorTests
 {
+    private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(60);
+
     // Mirrors Program.Main: parsed positionals, or the raw arguments when global parsing fails.
     private static string[] Positional(string[] args)
     {
@@ -123,17 +126,20 @@ public class FailureCaptureBehaviorTests
     public async Task Save_TimeoutDoesNotClaimACommit()
     {
         var store = CreateStore();
-        var elapsed = Stopwatch.StartNew();
-        var result = await FailureCapture.SaveAsync(["vm", "show"], Positional(["vm", "show"]), "vm show", new IOException("original"), 1,
+        var clock = new SignalingFakeTimeProvider();
+        var save = FailureCapture.SaveAsync(["vm", "show"], Positional(["vm", "show"]), "vm show", new IOException("original"), 1,
             "vm show", null, () => Manual(), () => store.Object, false,
             persist: async (_, _, ct) =>
             {
                 await Task.Delay(Timeout.InfiniteTimeSpan, ct);
                 throw new Xunit.Sdk.XunitException("The timed-out writer must not return an entry.");
-            }, getParentProcessId: () => 321);
+            }, getParentProcessId: () => 321, timeProvider: clock);
+        await clock.WaitForTimerAsync(FailureCapture.CaptureBudget, TestTimeout);
+        Assert.False(save.IsCompleted);
+        clock.Advance(FailureCapture.CaptureBudget);
+        var result = await save.WaitAsync(TestTimeout);
 
         Assert.Equal(TimeSpan.FromSeconds(2), FailureCapture.CaptureBudget);
-        Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(5), $"Two-second capture budget took {elapsed.Elapsed}.");
         Assert.Null(result.Entry);
         Assert.Null(result.Recovery);
         Assert.False(result.ShowHint);
@@ -462,7 +468,7 @@ public class FailureCaptureBehaviorTests
     public async Task Worker_LargeStderrIsDrainedButKeptBounded()
     {
         var debug = new List<string>();
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
 
         var error = await Assert.ThrowsAsync<FailureHistoryException>(() => FailureHistoryWorker.SaveAsync(
             FailureHistoryTestScope.CreateRecord(), 10, deadline.Token, DebugLogger(debug), TestWorker("stderr-flood")));
@@ -475,7 +481,7 @@ public class FailureCaptureBehaviorTests
     public async Task Worker_ChildThatHangsKeepsItsPartialStderrAtTheDeadline()
     {
         var debug = new List<string>();
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => FailureHistoryWorker.SaveAsync(
             FailureHistoryTestScope.CreateRecord(), 10, deadline.Token, DebugLogger(debug), TestWorker("stderr-hang")));
@@ -487,7 +493,7 @@ public class FailureCaptureBehaviorTests
     public async Task Worker_ChildThatHangsKeepsPartialMultiByteStderrAtTheDeadline()
     {
         var debug = new List<string>();
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => FailureHistoryWorker.SaveAsync(
             FailureHistoryTestScope.CreateRecord(), 10, deadline.Token, DebugLogger(debug), TestWorker("stderr-utf8-hang")));

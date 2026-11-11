@@ -359,7 +359,7 @@ internal sealed class OfflineCopilotServer : IAsyncDisposable
         _listener.Stop();
         try
         {
-            await _run.WaitAsync(TimeSpan.FromSeconds(10));
+            await _run.WaitAsync(TimeSpan.FromSeconds(60));
         }
         // One predicate for both filters. They used to list different sets, so
         // ObjectDisposedException was "expected shutdown" in the loop -- deliberately not caught

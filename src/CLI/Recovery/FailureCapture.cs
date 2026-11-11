@@ -66,7 +66,8 @@ internal static class FailureCapture
         bool inAgentMode,
         CancellationToken cancellationToken = default,
         Func<FailureRecord, int, CancellationToken, Task<FailureHistoryEntry>>? persist = null,
-        Func<uint>? getParentProcessId = null)
+        Func<uint>? getParentProcessId = null,
+        TimeProvider? timeProvider = null)
     {
         if (cancellationToken.IsCancellationRequested)
             return new(Canceled: true);
@@ -74,8 +75,8 @@ internal static class FailureCapture
             return new();
 
         using var userCancellation = new ConsoleCancellationScope(cancellationToken);
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(userCancellation.Token);
-        deadline.CancelAfter(CaptureBudget);
+        using var budget = new CancellationTokenSource(CaptureBudget, timeProvider ?? TimeProvider.System);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(userCancellation.Token, budget.Token);
         try
         {
             // Off is decided from configuration alone: no store, history directory, or control file is touched.

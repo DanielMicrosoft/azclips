@@ -19,7 +19,7 @@ namespace Core.Agent.Tests;
 [Collection("AgentTelemetry")]
 public class ChatAgentModelTelemetryTests
 {
-    private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan ModelQueryBudget = TimeSpan.FromSeconds(5);
 
     [Theory]
@@ -611,7 +611,7 @@ public class ChatAgentModelTelemetryTests
                 // The connection is gone, so a second query fails without reaching the server.
 #pragma warning disable GHCP001 // The SDK marks this read-only metadata API experimental.
                 var second = await Record.ExceptionAsync(() => rig.Session.Rpc.Model.GetCurrentAsync(CancellationToken.None)
-                    .WaitAsync(TimeSpan.FromSeconds(2)));
+                    .WaitAsync(TimeSpan.FromSeconds(60)));
 #pragma warning restore GHCP001
                 Assert.NotNull(second);
                 Assert.Equal(1, queries.Count);

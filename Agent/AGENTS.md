@@ -13,3 +13,8 @@ the same PR.
 - Do not write tests for test helpers. Keep fakes, harnesses and fake servers simple
   enough to verify by reading. Add a guard to a helper only when a real test needs it.
   If a helper needs its own tests, simplify it instead.
+- Tests must not depend on machine speed. Do not assert an upper bound on elapsed time.
+  Product code with a time budget takes a `TimeProvider` (default `TimeProvider.System`);
+  its tests drive the budget with `FakeTimeProvider`. A wait for something that must
+  happen uses a 60-second hang guard. Use a short window only to show that something
+  did not happen. Mark any test that is still speed-dependent `[Trait("Category", "LocalOnly")]`.

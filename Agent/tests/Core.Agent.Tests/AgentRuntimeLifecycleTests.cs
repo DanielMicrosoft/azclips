@@ -123,13 +123,13 @@ public sealed class AgentRuntimeLifecycleTests
                 "permission" => config.OnPermissionRequest!(null!, null!),
                 _ => Task.Run(() => config.OnEvent!(new SessionIdleEvent { Data = new SessionIdleData() })),
             };
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(60));
             Assert.True(enteredWithoutActivity);
 
             using var rootScope = scope.Telemetry.StartIndependentRootActivity("Agent.Session");
             var root = rootScope?.Activity;
             var completion = lifetime.CompleteAsync(root, terminalStatus: ActivityStatusCode.Ok);
-            await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(60));
             Assert.Equal(TelemetryLayerState.Running, scope.State);
             Assert.False(completion.IsCompleted);
             Assert.False(exited);
@@ -217,7 +217,7 @@ public sealed class AgentRuntimeLifecycleTests
                 lifetime.RegisterCleanup(resource.DisposeAsync);
                 throw new InvalidOperationException("original offline create failure");
             }, () => { }, timeProvider: clock);
-            await cleanupEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await cleanupEntered.Task.WaitAsync(TimeSpan.FromSeconds(60));
             Assert.False(running.IsCompleted);
 
             clock.Advance(TimeSpan.FromSeconds(10));
@@ -227,7 +227,7 @@ public sealed class AgentRuntimeLifecycleTests
 
             Assert.Null(scope.Telemetry.StartActivity("Agent.Send"));
             releaseClient.SetResult();
-            await resource!.DisposeAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            await resource!.DisposeAsync().WaitAsync(TimeSpan.FromSeconds(60));
             Assert.True(actualCleanupFinished);
             Assert.Throws<ObjectDisposedException>(() => context!.StartOperation("Agent.Send"));
             Assert.Null(scope.FileSession.PublishedPath);
@@ -340,21 +340,21 @@ public sealed class AgentRuntimeLifecycleTests
                 release.Wait();
             });
             var cancelling = lifetime.CancelAsync(userCancellation);
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(60));
             var completion = lifetime.CompleteAsync(root,
                 new Dictionary<string, object?> { [TelemetryTags.RecoveryOutcome] = "cancelled" }, ActivityStatusCode.Unset);
             try
             {
                 clock.Advance(TimeSpan.FromSeconds(10));
                 Assert.Equal(TelemetryLayerCompletion.NotPublished,
-                    await completion.WaitAsync(TimeSpan.FromSeconds(5)));
+                    await completion.WaitAsync(TimeSpan.FromSeconds(60)));
                 Assert.False(cancelling.IsCompleted);
                 Assert.Null(scope.FileSession.PublishedPath);
             }
             finally
             {
                 release.Set();
-                await cancelling.WaitAsync(TimeSpan.FromSeconds(5));
+                await cancelling.WaitAsync(TimeSpan.FromSeconds(60));
             }
         });
     }

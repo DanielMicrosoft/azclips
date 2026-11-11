@@ -47,7 +47,7 @@ public class RecoverySessionPolicyTests
     public async Task SessionConfig_UsesExistingReadOnlyAndUserApprovalPolicy(RecoveryTrigger trigger, string style)
     {
         using var http = new HttpClient();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         var approval = new ConsoleApprovalPrompt();
         var config = CreateConfig(trigger, style, approval, http, timeout.Token);
         var context = new PermissionInvocation { SessionId = "offline-policy-test" };

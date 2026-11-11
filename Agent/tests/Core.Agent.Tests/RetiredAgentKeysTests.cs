@@ -3,6 +3,7 @@
 
 using Core.Abstractions;
 using Core.Agent.AgentMode;
+using Tests.Common.Utilities;
 
 namespace Core.Agent.Tests;
 
@@ -42,14 +43,19 @@ public sealed class RetiredAgentKeysTests
     }
 
     [Fact]
-    public async Task SlowDelete_ReturnsWithinTheCleanupBudget()
+    public async Task SlowDelete_ReturnsWhenTheCleanupBudgetExpires()
     {
         var config = new RecordingConfiguration(new() { ["agent.enabled"] = true }) { HangOnDelete = true };
-        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        var clock = new SignalingFakeTimeProvider();
+        var testTimeout = TimeSpan.FromSeconds(60);
 
-        await RetiredAgentKeys.TryRemoveAsync(config, CancellationToken.None);
+        var cleanup = RetiredAgentKeys.TryRemoveAsync(config, CancellationToken.None, clock);
+        await clock.WaitForTimerAsync(RetiredAgentKeys.CleanupBudget, testTimeout);
+        Assert.False(cleanup.IsCompleted);
+        clock.Advance(RetiredAgentKeys.CleanupBudget);
 
-        Assert.True(elapsed.Elapsed < RetiredAgentKeys.CleanupBudget + TimeSpan.FromSeconds(5), $"elapsed {elapsed.Elapsed}");
+        await cleanup.WaitAsync(testTimeout);
+        Assert.Empty(config.Deleted);
     }
 
     private sealed class RecordingConfiguration(Dictionary<string, object?> values) : IConfigurationService

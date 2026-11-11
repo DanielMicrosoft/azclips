@@ -243,7 +243,7 @@ public sealed class DirectReadCommandTests
         process.StandardInput.Close();
         var output = process.StandardOutput.ReadToEndAsync();
         var errors = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         try
         {
             await process.WaitForExitAsync(timeout.Token);
