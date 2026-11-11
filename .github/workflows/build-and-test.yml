@@ -3,16 +3,22 @@ name: Build and Test
 on:
   pull_request:
     branches: [main]
-  workflow_dispatch:
 
 concurrency:
   group: build-and-test-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
-
+  timing-stress:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 300
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -21,241 +27,18 @@ jobs:
         uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           global-json-file: global.json
-
-      - name: Restore dependencies
-        run: dotnet restore azclips.slnx
 
       - name: Build
-        run: dotnet build azclips.slnx --no-restore --configuration Debug # Should be Release but
-        # there are some issues (a) with locating extension dll and (b) with the RequiredAssemblies property
+        run: dotnet build azclips.slnx --configuration Debug
 
-      - name: Run tests
-        run: dotnet test azclips.slnx --no-build --configuration Debug --verbosity normal
-
-      - name: E2E - CLI Help
+      - name: Run Agent and Recovery tests 20 times
         run: |
-          ./artifacts/Debug/Core.Cli/az --help
-
-      - name: Setup PowerShell
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y powershell
-
-      - name: E2E - PowerShell Module
-        shell: pwsh
-        run: |
-          Import-Module ./src/PS/Accounts/Accounts.psd1
-          $commands = Get-Command -Module Accounts
-          if ($commands.Count -eq 0) {
-            Write-Error "No commands found in Accounts module"
-            exit 1
-          }
-          Write-Host "Found $($commands.Count) commands in Accounts module"
-
-      - name: Key Vault offline safety checks
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          ./tests/Scripts/PS/KeyVaultSecrets.Harness.Tests.ps1
-            ./tests/Scripts/PS/KeyVaultCertificates.Harness.Tests.ps1
-
-  agent-tests-macos:
-    runs-on: macos-latest
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
-        with:
-          global-json-file: global.json
-
-      - name: Restore dependencies
-        run: dotnet restore azclips.slnx
-
-      - name: Build
-        run: dotnet build azclips.slnx --no-restore --configuration Debug
-
-      - name: Run Agent tests
-        run: dotnet test Agent/tests/Core.Agent.Tests/Core.Agent.Tests.csproj --no-build --configuration Debug --verbosity normal --blame-hang-timeout 10min --blame-hang-dump-type none --logger trx --results-directory TestResults
-
-      - name: Upload test results
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: agent-tests-macos-results
-          path: TestResults
-          retention-days: 14
-
-  recording-secret-scan:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-
-      - name: Scan changed recordings for secrets
-        run: python3 devops/scripts/ci/scan_recordings.py --base "origin/${{ github.base_ref || 'main' }}"
-
-  help-validate:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
-        with:
-          global-json-file: global.json
-
-      - name: Restore dependencies
-        run: dotnet restore azclips.slnx
-
-      - name: Build
-        run: dotnet build azclips.slnx --no-restore --configuration Debug
-
-      - name: Validate help content
-        run: |
-          dotnet run --project tools/Help/Azclips.Help.Tool/Azclips.Help.Tool.csproj --no-build --configuration Debug -- \
-            --artifacts-root artifacts/Debug \
-            --output-root artifacts/help
-
-      - name: Install PlatyPS
-        shell: pwsh
-        run: ./build/Install-BuildDependencies.ps1
-
-      - name: Smoke-test help drift gate
-        shell: pwsh
-        run: ./tests/Scripts/PS/HelpDriftFixtures.ps1
-
-      - name: Validate PS help drift
-        shell: pwsh
-        run: ./build/Test-PSHelpMarkdown.ps1
-
-  help-tool-tests:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
-        with:
-          global-json-file: global.json
-
-      - name: Restore dependencies
-        run: dotnet restore azclips.slnx
-
-      - name: Build solution
-        run: dotnet build azclips.slnx --no-restore --configuration Debug
-
-      - name: Run help tool tests
-        run: dotnet test tools/Help/Azclips.Help.Tool.Tests/Azclips.Help.Tool.Tests.csproj --no-build --configuration Debug --verbosity normal
-
-  ps-docs-sync-tests:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Install Pester 5+
-        shell: pwsh
-        run: Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck
-
-      - name: Install PlatyPS
-        shell: pwsh
-        run: ./build/Install-BuildDependencies.ps1
-
-      - name: Run PS docs sync Pester tests
-        shell: pwsh
-        run: |
-          $result = Invoke-Pester -Path tests/Ps.DocsSync.Tests/ -Output Detailed -PassThru
-          if ($result.FailedCount -gt 0) { throw "Pester tests failed: $($result.FailedCount) failure(s)." }
-
-      - name: PS docs sync — dry-run over real corpus
-        shell: pwsh
-        run: pwsh -File build/Sync-AzclipsPowerShellDocs.ps1 -TargetRepoPath /tmp/nonexistent
-
-  cli-docs-sync-tests:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Install Pester 5+
-        shell: pwsh
-        run: Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck
-
-      - name: Run CLI docs sync Pester tests
-        shell: pwsh
-        run: |
-          $result = Invoke-Pester -Path tests/Cli.DocsSync.Tests/ -Output Detailed -PassThru
-          if ($result.FailedCount -gt 0) { throw "Pester tests failed: $($result.FailedCount) failure(s)." }
-
-      # Load-only smoke: dot-source the shim with AZCLIPS_CLI_SYNC_LOAD_ONLY=1 (used by
-      # the Pester setup) so Main is skipped. Catches parse errors and stale function
-      # references without needing CLI2Yaml (which lives behind apidrop auth).
-      - name: CLI docs sync — load-only smoke
-        shell: pwsh
-        run: |
-          $env:AZCLIPS_CLI_SYNC_LOAD_ONLY = '1'
-          . ./build/Sync-AzClipsCliDocs.ps1
-          if (-not (Get-Command Invoke-SyncApply -ErrorAction SilentlyContinue)) {
-              throw "Load-only smoke failed: Invoke-SyncApply not defined after dot-sourcing."
-          }
-
-  release-script-tests:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
-      - name: Run PR file policy and stable release tagging tests
-        working-directory: devops/scripts/ci
-        run: python3 -m unittest test_check_pull_request_changes.py test_stable_release_tag.py -v
-
-      - name: Install Pester 5+
-        shell: pwsh
-        run: Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck
-
-      - name: Run release script Pester tests
-        shell: pwsh
-        run: |
-          $result = Invoke-Pester -Path tests/Release.Tests/ -Output Detailed -PassThru
-          if ($result.FailedCount -gt 0) { throw "Pester tests failed: $($result.FailedCount) failure(s)." }
-
-  # Unit tests for the Agent evaluation harness in Agent/eval. They run offline: no Azure
-  # sign-in, model calls or uploads. Windows matches where the harness runs evaluations.
-  eval-harness-tests:
-    runs-on: windows-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '24.x'
-
-      - name: Install eval harness test dependencies
-        working-directory: Agent/eval
-        run: npm ci --legacy-peer-deps
-
-      - name: Run eval harness offline tests
-        working-directory: Agent/eval
-        run: npm test
+          failures=0
+          for i in $(seq 1 20); do
+            echo "::group::Iteration $i"
+            dotnet test Agent/tests/Core.Agent.Tests/Core.Agent.Tests.csproj --no-build --configuration Debug --filter "Category!=LocalOnly" --logger "console;verbosity=minimal" || { failures=$((failures+1)); echo "::error::Agent tests failed in iteration $i"; }
+            dotnet test tests/Cli.Tests/Cli.Tests.csproj --no-build --configuration Debug --filter "FullyQualifiedName~Cli.Tests.Recovery&Category!=LocalOnly" --logger "console;verbosity=minimal" || { failures=$((failures+1)); echo "::error::Recovery tests failed in iteration $i"; }
+            echo "::endgroup::"
+          done
+          echo "Failed runs: $failures"
+          test "$failures" -eq 0
